@@ -299,6 +299,7 @@ class FlowTranslatorTest extends MidolmanSpec {
         var peerTunnels = mutable.Map[UUID,Route]()
         var grePort: Int = _
         var vxlanPortNumber: Int = _
+        var hostRecircPort = 0
 
         def getDpPortNumberForVport(vportId: UUID): Integer =
             dpPortNumberForVport get vportId orNull

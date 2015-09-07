@@ -23,6 +23,13 @@ import scala.collection.parallel.mutable
 
 import org.midonet.packets.IPv4Addr
 
+object VxlanRecircMap {
+
+    def intToBytePair(i: Int): (Byte, Byte) = ((i >>> 8).toByte, i.toByte)
+
+    def bytePairToInt(b1: Byte, b2: Byte): Int = ((b1 << 8) & 0xff00) | (b2 & 0xff)
+}
+
 // TODO: make this class thread-safe
 class VxlanRecircMap(val base: Int = 11000) {
     private val routerToInt = mutable.ParHashMap[UUID, Int]()
@@ -61,7 +68,4 @@ class VxlanRecircMap(val base: Int = 11000) {
                 i
         }
     }
-
-    def intToBytePair(i: Int): (Byte, Byte) = ((i >>> 8).toByte, i.toByte)
-    def bytePairToInt(b1: Byte, b2: Byte): Int = (b1 << 8) | b2
 }

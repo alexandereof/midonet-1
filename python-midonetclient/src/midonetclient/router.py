@@ -144,3 +144,10 @@ class Router(resource_base.ResourceBase,
 
     def add_bgp_peer(self):
         return bgp_peer.BgpPeer(self.dto['bgpPeers'], {}, self.auth)
+
+    def mac_ip_pairs(self, val):
+        self.dto['macIpPairs'] = val
+        return self
+
+    def get_mac_ip_pairs(self):
+        return self.dto['macIpPairs']

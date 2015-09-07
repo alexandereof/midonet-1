@@ -63,6 +63,8 @@ trait FlowTranslator {
         if (context.innerLayer == null)
             translateActions__(context)
         else {
+            context.log.debug(s"Translate for a simulation that added an " +
+                              s"encapsulation header with key ${context.innerLayer.vni}.")
             // An encapsulation header was added in-line and simulation
             // continued. This doesn't require recirculation, so we just
             // use outer packet/match's:
@@ -71,6 +73,8 @@ trait FlowTranslator {
             val outerVirtualFlowActions = context.virtualFlowActions
             // TODO: use the ToPortActions from the outer packet
             val outerMatch = context.wcmatch
+            context.log.debug(s"The outer virtual actions are ${outerVirtualFlowActions} " +
+                              s"and the outer match is ${outerMatch}")
             val vni = context.innerLayer.vni
             context.decap() // The inner layer replaces the outer one.
             context.calculateActionsFromMatchDiff()
@@ -88,25 +92,26 @@ trait FlowTranslator {
             context.addFlowAndPacketAction(setKey(FlowKeys.tunnel(
                 vni,
                 // Is this ok or do we need to use the host's local IP?
-                outerMatch.getNetworkSrcIP.asInstanceOf[IPv4Addr].toInt,
+                //outerMatch.getNetworkSrcIP.asInstanceOf[IPv4Addr].toInt,
+                IPv4Addr("192.168.192.118").toInt,
                 outerMatch.getNetworkDstIP.asInstanceOf[IPv4Addr].toInt,
                 0,
                 outerMatch.getNetworkTTL)))
             // We emit this from the VTEP tunnel port because it uses the
             // standard VXLAN UDP port.
             context.addFlowAndPacketAction(dpState.vtepTunnellingOutputAction)
+            context.log.debug("With the outer header accounted for, the flow " +
+                              s"actions are ${context.flowActions}")
         }
     }
 
     private def prepareDecapRecirc(context: PacketContext, routerId: UUID): Unit = {
-        context.log.debug("Packet will be decap'ed and recirculated to " +
-                          s"router ${routerId}")
         // The diff doesn't matter because the whole outer layer will be
         // removed. Instead, we modify outer fields so that the decap'ed packet
         // will be received by the vxlan recirc tunnel port. Choose:
-        // - the datapath's "local" port as the output port.
-        // - the datapath's local port's peer IP as the source IP
-        // - the datapath's local port's IP as the destination IP
+        // - the hostRecircPort (non-Vxlan) as the output port.
+        // - the recircMnAddress as the source IP
+        // - the host's Recirc Address as the destination IP
         // - the TOS and TTL such that together (16 bits) they can be used
         //   to uniquely identify (only within this process) the router where
         //   the inner packet's simulation should begin (by egressing the
@@ -119,29 +124,33 @@ trait FlowTranslator {
         // WARNING: on decap, we encode the Router Id NOT the egress L2port Id
         // because the outer flow may contain many inner flows with different
         // VNIs, that therefore need to egress different L2 ports.
-        val srcIp = IPv4Addr(config.datapathIfPeerAddr)
-        val dstIp = IPv4Addr(config.datapathIfAddr)
-        val srcUdp = 12345  // can be whatever
-        val dstUdp = config.datapath.vxlanRecirculateUdpPort
         val routerInt = vxlanRecircMap.routerToInt(routerId)
-        val tosTtl = vxlanRecircMap.intToBytePair(routerInt)
+        val tosTtl = VxlanRecircMap.intToBytePair(routerInt)
+        context.log.debug("Packet will be decap'ed and recirculated to " +
+                          s"router ${routerId} encoded as integer $routerInt " +
+                          s"and tosTtl bytes $tosTtl")
         context.addFlowAndPacketAction(setKey(
-            FlowKeys.ipv4(srcIp, dstIp,
+            FlowKeys.ethernet(MAC.fromString(config.recircMnMac).getAddress,
+                              MAC.fromString(config.recircHostMac).getAddress)))
+        context.addFlowAndPacketAction(setKey(
+            FlowKeys.ipv4(IPv4Addr(config.recircMnAddr),
+                          IPv4Subnet.fromCidr(config.recircHostCidr).getAddress,
                           context.wcmatch.getNetworkProto,
                           tosTtl._1,
                           tosTtl._2,
                           context.wcmatch.getIpFragmentType)))
-        context.addFlowAndPacketAction(setKey(FlowKeys.udp(srcUdp, dstUdp)))
-        context.addFlowAndPacketAction(FlowActions.output(0))
+        context.addFlowAndPacketAction(setKey(
+            FlowKeys.udp(12345, // can be anything
+                         config.datapath.vxlanRecirculateUdpPort)))
+        context.addFlowAndPacketAction(
+            FlowActions.output(dpState.hostRecircPort))
     }
 
     private def prepareEncapRecirc(context: PacketContext, vni: Int,
                            routerL2portId: UUID, remoteVtep: IPv4Addr): Unit = {
-        // When the encap'd packet ingresses the datapath, the outer dst IP
-        // must be set to the remote VTEP appropriate for the inner dst MAC, the
-        // outer src IP must be set to the local VTEP, the "ingress port" must
-        // be set to the L2 port, and then the packet must be sent to the
-        // router's routing pipeline.
+        // Emit the packet from the vxlan recirc tunnel port so that it gets
+        // encapsulated. But then we need it to come back into the datapath for
+        // further processing.
         // We can only match on the outer L2-L4 headers, not the inner ones.
         // Therefore, to avoid collisions between inner flows with different
         // VNIs and/or destination MACs, we need to encode BOTH the portId AND
@@ -149,16 +158,20 @@ trait FlowTranslator {
         // encode the dst VTEP because there are few distinct values. The
         // routerId can be obtained from the portId.
         val i = vxlanRecircMap.portVtepToInt(routerL2portId, remoteVtep)
-        val tosTtl = vxlanRecircMap.intToBytePair(i)
+        val tosTtl = VxlanRecircMap.intToBytePair(i)
         context.addFlowAndPacketAction(
             setKey(FlowKeys.tunnel(
                 vni,
-                IPv4Addr(config.datapathIfAddr).toInt,
-                IPv4Addr(config.datapathIfPeerAddr).toInt,
+                IPv4Subnet.fromCidr(config.recircHostCidr).getIntAddress,
+                IPv4Addr(config.recircMnAddr).toInt,
                 tosTtl._1,
                 tosTtl._2)))
         context.addFlowAndPacketAction(
             dpState.vxlanRecircOutputAction)
+        context.log.debug("Packet will be encap'ed and recirculated to " +
+                          s"routerL2portId $routerL2portId for remote Vtep " +
+                          s"$remoteVtep encoded as integer $i and tosTtl " +
+                          s"bytes $tosTtl")
     }
 
     def translateActions__(context: PacketContext): Unit = {

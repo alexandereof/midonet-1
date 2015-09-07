@@ -283,6 +283,7 @@ class PacketContext(val cookie: Int,
                 packet = innerLayer.packet
                 origMatch = packet.getMatch
                 wcmatch = innerLayer.modifiedMatch
+                virtualFlowActions = innerLayer.virtualFlowActions
                 innerLayer = null
                 true
         }

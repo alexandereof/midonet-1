@@ -292,6 +292,7 @@ trait VirtualTopologyHelper { this: MidolmanServices =>
                        flowRecorder: FlowRecorder = injector.getInstance(classOf[FlowRecorderFactory]).newFlowRecorder())
                       (implicit hostId: UUID) = {
         val dpState = new DatapathState {
+            var hostRecircPort = 0
             override val datapath = new Datapath(0, "midonet")
             override def peerTunnelInfo(peer: UUID): Option[UnderlayRoute] =
                 peers.get(peer)

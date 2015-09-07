@@ -15,6 +15,7 @@
  */
 package org.midonet.midolman.simulation
 
+import java.nio.ByteBuffer
 import java.util.UUID
 
 import scala.collection.mutable
@@ -73,14 +74,28 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
         // TODO: make the UDP port configurable? Or per-L2 port?
         if (context.wcmatch.getNetworkProto == UDP.PROTOCOL_NUMBER
                  && context.wcmatch.getDstPort == UDP.VXLAN) {
-            val vni = context.ethernet.getPayload.getPayload
-                .getPayload.asInstanceOf[VXLAN].getVni
+            val udpPayload = context.ethernet.getPayload.getPayload
+                .getPayload
+            var vni = 0
+            if (udpPayload.isInstanceOf[VXLAN])
+                vni = udpPayload.asInstanceOf[VXLAN].getVni
+            else if (udpPayload.isInstanceOf[Data]) {
+                val data = udpPayload.asInstanceOf[Data]
+                val vxlan = new VXLAN()
+                vxlan.deserialize(ByteBuffer.wrap(data.getData))
+                vni = vxlan.getVni
+            } else {
+                context.log.warn("UDP packet to VXLAN port has " +
+                                 "unparseable payload.")
+                return Drop
+            }
+
             // Since the kernel flow rules don't match any of the VXLAN
             // header, we read the UDP source port. This guarantees that
             // whatever treatment we give this packet (route or decap)
             // will apply to only flows with the same source port.
             val udpSrc = context.wcmatch.getSrcPort
-            context.log.debug(s"Processing vxlan packet with vni=$vni" +
+            context.log.debug(s"Processing vxlan packet with vni=$vni " +
                               s"and udpSrc=$udpSrc")
             vniToL2Port.get(vni) match {
                 case None => // drop through
@@ -174,6 +189,7 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
         context.wcmatch.setDstPort(UDP.VXLAN.toShort)
         // TODO: verify we need to set this manually
         context.inPortId = l2port.id
+        context.inputPort = l2port.id
         continue(context, preRouting()(context))
     }
 
@@ -185,7 +201,8 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
                 context.log.warn(s"Could not find a L2 port with vni=$vni")
                 Drop
             case Some(portId) =>
-                ToPortAction(portId)
+                context.inputPort = portId
+                continue(context, ToPortAction(portId))
         }
     }
 
@@ -193,12 +210,13 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
                      (implicit context: PacketContext): SimulationResult = {
         // TODO: propagate inner flow's state to ingresses of encap's return
         // Find the remote VTEP appropriate for the dst MAC of the inner pkt.
-        var remoteVtep = fromL2Port.remoteVteps.get(context.wcmatch.getEthDst) match {
+        var remoteVtep = fromL2Port.remoteMacToVtepIp
+            .get(context.wcmatch.getEthDst) match {
             case None => fromL2Port.defaultRemoteVtep
             case Some(ip) => ip
         }
         if (remoteVtep eq null) {
-            context.log.warn(s"Could not find a remote VTEP for mac=${context.wcmatch.getEthSrc}")
+            context.log.warn(s"Could not find a remote VTEP for mac=${context.wcmatch.getEthDst}")
             return Drop
         }
         if (!fromL2Port.offRampVxlan) {
@@ -215,7 +233,7 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
         // headers on the packet and continue the simulation.
         // TODO: choose the source port by hashing?
         val udpSrc = Random.nextInt() >>> 17
-        val outerEthernet =  (eth addr "00:00:00:00:00:00" -> fromL2Port.portMac.toString)  <<
+        val outerEthernet =  (eth addr "02:00:00:00:00:00" -> "02:00:00:00:00:00")  <<
                              (ip4 src fromL2Port.localVtep dst remoteVtep) <<
                              (udp ports udpSrc ---> UDP.VXLAN.toShort) <<
                              (vxlan vni fromL2Port.vni) <<
@@ -290,7 +308,11 @@ abstract class RouterBase[IP <: IPAddr](val id: UUID,
             return handleL2Broadcast(inPort)
         }
 
-        if (hwDst != inPort.portMac) { // Not addressed to us, log.warn and drop
+        // If this routerPort is L3, then the packet's L2 destination must match
+        // the port's MAC.
+        if (inPort.vni == 0
+            && inPort.portMac != null
+            && hwDst != inPort.portMac) { // Not addressed to us, log.warn and drop
             context.log.warn("{} neither broadcast nor inPort's MAC ({})",
                 hwDst, inPort.portMac)
             return Drop

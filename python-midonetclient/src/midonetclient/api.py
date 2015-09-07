@@ -554,6 +554,38 @@ class MidonetApi(object):
         self._ensure_application()
         return self.app.delete_vtep(mgmt_ip)
 
+    def get_router_vtep_bindings(self):
+        self._ensure_application()
+        return self.app.get_router_vtep_bindings()
+
+    def add_router_vtep_binding(self):
+        self._ensure_application()
+        return self.app.add_router_vtep_binding()
+
+    def get_router_vtep_binding(self, _id):
+        self._ensure_application()
+        return self.app.get_router_vtep_binding(_id)
+
+    def delete_router_vtep_binding(self, _id):
+        self._ensure_application()
+        return self.app.delete_router_vtep_binding(_id)
+
+    def get_router_vtep_routes(self):
+        self._ensure_application()
+        return self.app.get_router_vtep_routes()
+
+    def add_router_vtep_route(self):
+        self._ensure_application()
+        return self.app.add_router_vtep_route()
+
+    def get_router_vtep_route(self, _id):
+        self._ensure_application()
+        return self.app.get_router_vtep_route(_id)
+
+    def delete_router_vtep_route(self, _id):
+        self._ensure_application()
+        return self.app.delete_router_vtep_route(_id)
+
     def get_tracerequests(self):
         self._ensure_application()
         return self.app.get_tracerequests()

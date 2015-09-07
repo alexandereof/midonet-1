@@ -95,6 +95,7 @@ trait VirtualPortsResolver {
 
 trait DatapathState extends VirtualPortsResolver with UnderlayResolver {
     def datapath: Datapath
+    def hostRecircPort: Int
 }
 
 object DatapathController extends Referenceable {
@@ -203,13 +204,15 @@ class DatapathController @Inject() (val driver: DatapathStateDriver,
             // We use the datapath's "local" port to recirculate packets that
             // need encap/decap before futher processing.
             // TODO: add a new/separate internal port for this purpose.
-            var cmd = s"ip address add ${config.datapathIfAddr} dev ${config.datapathName}"
-            var result = ProcessHelper.executeCommandLine(cmd, false)
-            cmd = s"ip link set ${config.datapathName} address 02:00:11:00:11:01"
-            result = ProcessHelper.executeCommandLine(cmd, false)
-            cmd = s"ip link set ${config.datapathName} up"
-            result = ProcessHelper.executeCommandLine(cmd, false)
-            cmd = s"ip neigh add ${config.datapathIfPeerAddr} 02:00:11:00:11:02 nud permanent"
+            var cmd = s"ip link add name ${config.recircHostName} type veth peer name ${config.recircMnName}"
+            var result = ProcessHelper.executeCommandLine(cmd, true)
+            cmd = s"ip address add ${config.recircHostCidr} dev ${config.recircHostName}"
+            result = ProcessHelper.executeCommandLine(cmd, true)
+            cmd = s"ip link set ${config.recircHostName} address ${config.recircHostMac}"
+            result = ProcessHelper.executeCommandLine(cmd, true)
+            cmd = s"ip link set ${config.recircHostName} up"
+            result = ProcessHelper.executeCommandLine(cmd, true)
+            cmd = s"ip neigh add ${config.recircMnAddr} lladdr ${config.recircMnMac} dev ${config.recircHostName} nud permanent"
             // Ignore the errors seeding the neighbor table.
             result = ProcessHelper.executeCommandLine(cmd, true)
             makeTunnelPort(OverlayTunnel) { () =>
@@ -232,8 +235,13 @@ class DatapathController @Inject() (val driver: DatapathStateDriver,
                     val vlxanRecircPort = config.datapath.vxlanRecirculateUdpPort
                     VxLanTunnelPort make("tnvxlan-recirc", vlxanRecircPort)
                 }
-            } map { recirc =>
-                driver.tunnelRecircVxLan = recirc
+            } flatMap { recircTunPort =>
+                driver.tunnelRecircVxLan = recircTunPort
+                makeTunnelPort(VirtualMachine) { () =>
+                    new NetDevPort(config.recircMnName)
+                }
+            } map { recircPort =>
+                driver.hostRecircPort = recircPort.getPortNo
                 TunnelPortsCreated_
             } pipeTo self
 
@@ -450,6 +458,8 @@ class DatapathStateDriver(val datapath: Datapath) extends DatapathState  {
     def isOverlayTunnellingPort(portNumber: Integer) =
         tunnelOverlayGre.getPortNo == portNumber ||
         tunnelOverlayVxLan.getPortNo == portNumber
+
+    var hostRecircPort = 0
 
     /** 2D immutable map of peerUUID -> zoneUUID -> (srcIp, dstIp, outputAction)
      *  this map stores all the possible underlay routes from this host

@@ -35,6 +35,8 @@ from midonetclient import port_group
 from midonetclient import resource_base
 from midonetclient import route
 from midonetclient import router
+from midonetclient import router_vtep_binding
+from midonetclient import router_vtep_route
 from midonetclient import rule
 from midonetclient import system_state
 from midonetclient import tenant
@@ -106,6 +108,12 @@ class Application(resource_base.ResourceBase):
 
     def get_vtep_template(self):
         return self.dto['vtepTemplate']
+
+    def get_router_vtep_binding_template(self):
+        return self.dto['routerVtepBindingTemplate']
+
+    def get_router_vtep_route_template(self):
+        return self.dto['routerVtepRouteTemplate']
 
     def get_write_version_uri(self):
         return self.dto['writeVersion']
@@ -547,6 +555,42 @@ class Application(resource_base.ResourceBase):
     def delete_vtep(self, mgmt_ip):
         return self._delete_resource_by_ip_addr(self.get_vtep_template(),
                                                 mgmt_ip)
+
+    def get_router_vtep_bindings(self):
+        headers = {'Accept':
+                   vendor_media_type.APPLICATION_ROUTER_VTEP_BINDING_COLLECTION_JSON}
+        return self.get_children(self.dto['routerVtepBindings'], {}, headers, router_vtep_binding.RouterVtepBinding)
+
+    def add_router_vtep_binding(self):
+        return router_vtep_binding.RouterVtepBinding(self.dto['routerVtepBindings'], {}, self.auth)
+
+    def get_router_vtep_binding(self, _id):
+        return self._get_resource_by_id(router_vtep_binding.RouterVtepBinding,
+                                             self.dto['routerVtepBindings'],
+                                             self.get_router_vtep_binding_template(),
+                                             _id)
+
+    def delete_router_vtep_binding(self, _id):
+        return self._delete_resource_by_id(self.get_router_vtep_binding_template(),
+                                                _id)
+
+    def get_router_vtep_routes(self):
+        headers = {'Accept':
+                   vendor_media_type.APPLICATION_ROUTER_VTEP_ROUTE_COLLECTION_JSON}
+        return self.get_children(self.dto['routerVtepRoutes'], {}, headers, router_vtep_route.RouterVtepRoute)
+
+    def add_router_vtep_route(self):
+        return router_vtep_route.RouterVtepRoute(self.dto['routerVtepRoutes'], {}, self.auth)
+
+    def get_router_vtep_route(self, _id):
+        return self._get_resource_by_id(router_vtep_route.RouterVtepRoute,
+                                             self.dto['routerVtepRoutes'],
+                                             self.get_router_vtep_route_template(),
+                                             _id)
+
+    def delete_router_vtep_route(self, _id):
+        return self._delete_resource_by_id(self.get_router_vtep_route_template(),
+                                                _id)
 
     def get_tracerequests(self):
         headers = {'Accept':

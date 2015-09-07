@@ -377,9 +377,40 @@ message Router {
     repeated UUID inbound_mirrors = 12;
     repeated UUID outbound_mirrors = 13;
 
+    // Prototype only: seed mac-ip pairs until VTEP generates local ARP replies
+    repeated MacIp mac_ip_pairs = 34;
+
     // Backreferences
     repeated UUID port_ids = 101;
     repeated UUID trace_request_ids = 102;
+}
+
+message RouterVtepBinding {
+    optional UUID id = 1;
+    optional UUID vtep_id = 2;
+    optional IPAddress vtep_tunnel_address = 3;
+    optional uint32 vni = 4;
+    optional UUID router_id = 5;
+    optional IPSubnet router_port_subnet = 6;
+    optional IPAddress router_port_address = 7;
+    optional string router_port_mac = 8;
+    optional UUID router_port_id = 9;  // allocated by MidoNet
+    optional UUID vtep_port_id = 10;    // allocated by MidoNet
+    optional UUID route1 = 11;    // allocated by MidoNet
+    optional UUID route2 = 12;    // allocated by MidoNet
+
+    // Backreferences
+    repeated UUID vtep_route = 100;
+}
+
+message RouterVtepRoute {
+    optional UUID id = 1;
+    optional UUID binding_id = 2;
+    optional IPSubnet cidr = 3;
+    optional IPAddress gw_ip = 4;
+    optional string gw_mac = 5;
+    optional IPAddress remote_vtep_ip = 6;
+    optional UUID route = 10;    // allocated by MidoNet
 }
 
 message Rule {

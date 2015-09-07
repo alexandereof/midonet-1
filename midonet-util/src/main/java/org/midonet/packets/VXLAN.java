@@ -52,9 +52,9 @@ public class VXLAN  extends BasePacket {
         // Ignore the first 4 bytes
         bb.getInt();
         vni = bb.getInt() >>> 8;
-        IPacket payload = new Ethernet();
-        this.payload = payload.deserialize(bb.slice());
-        this.payload.setParent(this);
+        // Don't deserialize the payload
+        payload = (new Data()).deserialize(bb);
+        payload.setParent(this);
         return this;
     }
 }

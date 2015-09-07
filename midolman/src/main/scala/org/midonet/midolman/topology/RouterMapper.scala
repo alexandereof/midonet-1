@@ -31,8 +31,9 @@ import rx.Observable
 import rx.subjects.{PublishSubject,Subject}
 
 import org.midonet.cluster.data.ZoomConvert
-import org.midonet.cluster.models.Topology.{Route => TopologyRoute, Router => TopologyRouter}
+import org.midonet.cluster.models.Topology.{Route => TopologyRoute, Router => TopologyRouter, MacIp}
 import org.midonet.cluster.state.RoutingTableStorage._
+import org.midonet.cluster.util.IPAddressUtil
 import org.midonet.cluster.util.UUIDUtil._
 import org.midonet.midolman.layer3.{IPv4RoutingTable, Route}
 import org.midonet.midolman.simulation.Router.{Config, RoutingTable, TagManager}
@@ -40,7 +41,7 @@ import org.midonet.midolman.simulation.{Router => SimulationRouter, Mirror, Rout
 import org.midonet.midolman.state.ArpCache
 import org.midonet.midolman.topology.RouterMapper._
 import org.midonet.odp.FlowMatch
-import org.midonet.packets.IPv4Addr
+import org.midonet.packets.{MAC, IPv4Addr}
 import org.midonet.util.collection.IPv4InvalidationArray
 import org.midonet.util.functors._
 
@@ -370,6 +371,7 @@ final class RouterMapper(routerId: UUID, vt: VirtualTopology,
     // Stores all routes received via notifications from the replicated routing
     // table.
     private val routes = new mutable.HashSet[Route]
+    private var ipMacSeeds = Map.empty[IPv4Addr, MAC]
     // Stores routes received via the router's configuration in storage.
     private val localRoutes = new mutable.HashMap[UUID, RouteState]
     private var arpCache: ArpCache = null
@@ -532,6 +534,11 @@ final class RouterMapper(routerId: UUID, vt: VirtualTopology,
 
         val portIds = router.getPortIdsList.asScala.map(_.asJava).toSet
         val routeIds = router.getRouteIdsList.asScala.map(_.asJava).toSet
+        ipMacSeeds = router.getMacIpPairsList.asScala.map({
+            pair: MacIp =>
+                (IPAddressUtil.toIPv4Addr(pair.getIp),
+                    MAC.fromString(pair.getMac))
+        }).toMap
 
         // Complete the observables for the ports no longer part of this router,
         // and notify the deletion route for the port state.
@@ -673,7 +680,8 @@ final class RouterMapper(routerId: UUID, vt: VirtualTopology,
             config2,
             new RouterRoutingTable(routes),
             tagManager,
-            arpCache
+            arpCache,
+            ipMacSeeds = ipMacSeeds
             )
         for ((portId, portState) <- ports.toList) {
             portState.currentPort.vni match {

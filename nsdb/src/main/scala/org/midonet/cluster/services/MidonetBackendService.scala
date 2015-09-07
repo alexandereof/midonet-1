@@ -84,6 +84,8 @@ abstract class MidonetBackend extends AbstractService {
              classOf[PortGroup],
              classOf[Route],
              classOf[Router],
+             classOf[RouterVtepBinding],
+             classOf[RouterVtepRoute],
              classOf[Rule],
              classOf[SecurityGroup],
              classOf[SecurityGroupRule],
@@ -92,6 +94,9 @@ abstract class MidonetBackend extends AbstractService {
              classOf[Vip],
              classOf[Vtep]
         ).foreach(store.registerClass)
+
+        store.declareBinding(classOf[RouterVtepBinding], "vtep_route", CASCADE,
+                             classOf[RouterVtepRoute], "binding_id", CLEAR)
 
         store.declareBinding(classOf[Network], "port_ids", CASCADE,
                              classOf[Port], "network_id", CLEAR)

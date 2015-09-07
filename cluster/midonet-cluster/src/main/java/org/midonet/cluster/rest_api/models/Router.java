@@ -16,6 +16,7 @@
 package org.midonet.cluster.rest_api.models;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -85,6 +86,9 @@ public class Router extends UriResource {
     @ZoomField(name = "outbound_mirrors", converter = UUIDUtil.Converter.class)
     public List<UUID> outboundMirrors;
 
+    @ZoomField(name = "mac_ip_pairs")
+    public List<MacIp> macIpPairs = new ArrayList<>();
+
     public Router() {
         adminStateUp = true;
     }
@@ -150,6 +154,7 @@ public class Router extends UriResource {
         bgpNetworkIds = from.bgpNetworkIds;
         bgpPeerIds = from.bgpPeerIds;
         traceRequestIds = from.traceRequestIds;
+        macIpPairs = from.macIpPairs;
     }
 
 }

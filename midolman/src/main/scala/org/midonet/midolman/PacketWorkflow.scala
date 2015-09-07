@@ -98,12 +98,13 @@ trait UnderlayTrafficHandler { this: PacketWorkflow =>
         } else if (dpState isVtepTunnellingPort inPortNo) {
             handleFromVtep(context)
         } else if (dpState isVxlanRecircPort inPortNo) {
+            context.log.debug(s"Received a packet on the vxlan recirc port: $context")
             // Packets that need to be decapsulated are emitted from the
             // datapath's local/internal port to the L3 address of the midonet
             // datapath/bridge's interface. The tunnel TOS/TTL encode the Id
             // of the router where the inner packet's simulation must begin.
-            if (context.wcmatch.getTunnelSrc != IPv4Addr(config.datapathIfPeerAddr).toInt ||
-                context.wcmatch.getTunnelDst != IPv4Addr(config.datapathIfAddr).toInt) {
+            if (context.wcmatch.getTunnelSrc != IPv4Addr(config.recircMnAddr).toInt ||
+                context.wcmatch.getTunnelDst != IPv4Subnet.fromCidr(config.recircHostCidr).getIntAddress) {
                 context.log.warn("Vxlan recirc port received a packet with " +
                                  "unexpected tunnel L3 addresses.")
                 processSimulationResult(context, Drop)
@@ -111,7 +112,10 @@ trait UnderlayTrafficHandler { this: PacketWorkflow =>
             // TODO: fetch the flow state for the inner packet.
             val tos = context.wcmatch.getTunnelTOS
             val ttl = context.wcmatch.getTunnelTTL
-            val routerInt = vxlanRecircMap.bytePairToInt(tos, ttl)
+            val routerInt = VxlanRecircMap.bytePairToInt(tos, ttl)
+            context.log.debug("The packet arriving at the vxlan recirc " +
+                              s"port has tos $tos ttl $ttl encoding " +
+                              s" integer $routerInt")
             vxlanRecircMap.intToRouter(routerInt) match {
                 case None =>
                     context.log.warn("Unrecognized router encoded in " +
@@ -518,19 +522,20 @@ class PacketWorkflow(
             handleFromTunnel(context, inPortNo)
         } else if (resolveVport(context, inPortNo)) {
             processSimulationResult(context, simulatePacketIn(context))
-        } else if (inPortNo == 0) {
+        } else if (inPortNo == dpState.hostRecircPort) {
+            context.log.debug(s"Received a packet on the host recirc port: $context")
             // Packets that need to be encapsulated are emitted from the vxlan
             // recirculation tunnel port towards the internal port.
-            if (context.wcmatch.getNetworkSrcIP.asInstanceOf[IPv4Addr].toInt != IPv4Addr(config.datapathIfAddr).toInt ||
-                context.wcmatch.getNetworkDstIP.asInstanceOf[IPv4Addr].toInt != IPv4Addr(config.datapathIfPeerAddr).toInt) {
-                context.log.warn("Internal port 0 received a packet with " +
-                                 "unexpected L3 addresses.")
+            if (context.wcmatch.getNetworkSrcIP.asInstanceOf[IPv4Addr].toInt != IPv4Subnet.fromCidr(config.recircHostCidr).getIntAddress ||
+                context.wcmatch.getNetworkDstIP.asInstanceOf[IPv4Addr].toInt != IPv4Addr(config.recircMnAddr).toInt) {
+                context.log.warn("The host recirc port received a packet " +
+                                 "with unexpected L3 addresses.")
                 processSimulationResult(context, Drop)
             }
             if (context.wcmatch.getNetworkProto != UDP.PROTOCOL_NUMBER
                 || context.wcmatch.getDstPort != config.datapath.vxlanRecirculateUdpPort) {
-                context.log.warn("The packet arriving on port 0 is not VXLAN " +
-                                 "or not from the vxlan recirculate UDP port.")
+                context.log.warn("The packet arriving on the host recirc port " +
+                                 "is not VXLAN or not from the vxlan recirculate UDP port.")
                 processSimulationResult(context, Drop)
             } else {
                 // On Encap, the TOS/TTL encode the router L2 port where
@@ -538,11 +543,14 @@ class PacketWorkflow(
                 // inner dst MAC.
                 val tos = context.wcmatch.getNetworkTOS
                 val ttl = context.wcmatch.getNetworkTTL
-                val portVtep = vxlanRecircMap.bytePairToInt(tos, ttl)
+                val portVtep = VxlanRecircMap.bytePairToInt(tos, ttl)
+                context.log.debug("The packet arriving at the host recirc " +
+                                  s"port has tos $tos ttl $ttl encoding " +
+                                  s" integer $portVtep")
                 vxlanRecircMap.intToPortVtep(portVtep) match {
                     case None =>
-                        context.log.warn("Unrecognized router encoded in " +
-                                         "tos/ttl of recirc'd encap'd packet.")
+                        context.log.warn(s"Failed to decode tos $tos ttl $ttl of recirc'd encap'd packet: " +
+                                         "no corresponding VTEP L2 port Id and Tunnel IP found.")
                         processSimulationResult(context, Drop)
                     case Some((portId, vtep)) =>
                         val port = tryAsk[RouterPort](portId)

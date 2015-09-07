@@ -173,6 +173,14 @@ APPLICATION_VTEP_BINDING_JSON = \
 APPLICATION_VTEP_BINDING_COLLECTION_JSON = \
             "application/vnd.org.midonet.collection.VTEPBinding-v1+json"
 
+# Overlay VTEP
+APPLICATION_ROUTER_VTEP_BINDING_JSON = "application/vnd.org.midonet.RouterVtepBinding-v1+json"
+APPLICATION_ROUTER_VTEP_BINDING_COLLECTION_JSON = \
+            "application/vnd.org.midonet.collection.RouterVtepBinding-v1+json"
+APPLICATION_ROUTER_VTEP_ROUTE_JSON = "application/vnd.org.midonet.RouterVtepRoute-v1+json"
+APPLICATION_ROUTER_VTEP_ROUTE_COLLECTION_JSON = \
+            "application/vnd.org.midonet.collection.RouterVtepRoute-v1+json"
+
 # trace requests
 APPLICATION_TRACE_REQUEST_JSON = "application/vnd.org.midonet.TraceRequest-v1+json"
 APPLICATION_TRACE_REQUEST_COLLECTION_JSON = "application/vnd.org.midonet.collection.TraceRequest-v1+json"

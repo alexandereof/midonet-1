@@ -21,11 +21,16 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  *
  * @author David Erickson (daviderickson@cs.stanford.edu)
  */
 public class UDP extends BasePacket implements Transport {
+    private static final Logger log = LoggerFactory.getLogger(UDP.class);
+
     public static final byte PROTOCOL_NUMBER = 0x11;
     public static final int DHCP_SERVER = 67;
     public static final int DHCP_CLIENT = 68;
@@ -284,15 +289,21 @@ public class UDP extends BasePacket implements Transport {
         this.checksum = bb.getShort();
 
         if (UDP.decodeMap.containsKey(this.destinationPort)) {
+            log.debug("Decoding UDP payload for destination port {}", this.destinationPort);
             try {
                 payload = UDP.decodeMap.get(this.destinationPort).getConstructor().newInstance();
             } catch (Exception e) {
+                log.error("Caught exception while decoding UDP payload for " +
+                          "destination port {}: {}", this.destinationPort, e);
                 payload = new Data();
             }
         } else if (UDP.decodeMap.containsKey(this.sourcePort)) {
+            log.debug("UDP decoding payload for source port {}", this.sourcePort);
             try {
                 payload = UDP.decodeMap.get(this.sourcePort).getConstructor().newInstance();
             } catch (Exception e) {
+                log.error("Caught exception while decoding UDP payload for "
+                          + "source port {}: {}", this.sourcePort, e);
                 payload = new Data();
             }
         } else {
@@ -309,6 +320,9 @@ public class UDP extends BasePacket implements Transport {
         try {
             payload.deserialize(bb);
         } catch (Exception e) {
+            log.error("Caught exception while decoding payload for UDP "
+                      + "(src={}, dst={}): {}",
+                      this.destinationPort, this.sourcePort, e);
             payload = (new Data()).deserialize(bb);
         }
         bb.limit(end);

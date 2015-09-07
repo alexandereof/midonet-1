@@ -23,12 +23,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import org.midonet.cluster.data.ZoomClass;
 import org.midonet.cluster.data.ZoomField;
+import org.midonet.cluster.data.ZoomObject;
 import org.midonet.cluster.models.Topology;
 import org.midonet.cluster.util.IPAddressUtil;
 import org.midonet.packets.IPv4;
 
 @ZoomClass(clazz = Topology.MacIp.class)
-public class MacIp {
+public class MacIp extends ZoomObject {
 
     @NotNull
     @ZoomField(name = "mac")

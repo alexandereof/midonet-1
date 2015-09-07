@@ -15,6 +15,7 @@
  */
 package org.midonet.cluster.rest_api.models;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -67,7 +68,7 @@ public class RouterPort extends Port {
     public String defaultRemoteVtep;
 
     @Min(0)
-    @Max(2^24 - 1)
+    @Max(16777215)
     @ZoomField(name = "vni")
     public int rtrPortVni;
 
@@ -75,7 +76,7 @@ public class RouterPort extends Port {
     public boolean offRampVxlan;
 
     @ZoomField(name = "remote_vteps")
-    public List<MacIp> remoteVteps;
+    public List<MacIp> remoteVteps = new ArrayList<>();
 
     @JsonIgnore
     @ZoomField(name = "router_id", converter = UUIDUtil.Converter.class)

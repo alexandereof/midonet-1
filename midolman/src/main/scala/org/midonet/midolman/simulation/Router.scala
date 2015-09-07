@@ -75,7 +75,8 @@ class Router(override val id: UUID,
              override val cfg: Config,
              override val rTable: RoutingTable,
              override val routerMgrTagger: TagManager,
-             val arpCache: ArpCache)
+             val arpCache: ArpCache,
+             val ipMacSeeds: Map[IPv4Addr, MAC] = Map.empty())
             (implicit system: ActorSystem)
         extends RouterBase[IPv4Addr](id, cfg, rTable, routerMgrTagger) with MirroringDevice {
 
@@ -310,6 +311,10 @@ class Router(override val id: UUID,
                 val nextHopIP =
                     if (nextHopInt == 0 || nextHopInt == -1) ipDest // last hop
                     else IPv4Addr(nextHopInt)
+                ipMacSeeds.get(nextHopIP) match {
+                    case Some(m: MAC) => return m
+                    case _ => // Fall through
+                }
                 context.addFlowTag(FlowTagger.tagForArpEntry(id, nextHopIP))
                 getMacForIP(outPort, nextHopIP, context)
             case mac => mac

@@ -388,6 +388,7 @@ class AdminStateTest extends MidolmanSpec {
         override protected val config: MidolmanConfig = null
 
         protected val dpState: DatapathState = new DatapathState {
+            var hostRecircPort = 0
             val host = rcu.ResolvedHost(hostId, true, Map.empty, Map.empty)
             def peerTunnelInfo(peer: UUID) = null
             def overlayTunnellingOutputAction: FlowActionOutput = null

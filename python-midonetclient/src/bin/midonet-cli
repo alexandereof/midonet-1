@@ -651,6 +651,74 @@ class CidrPair(SingleAttr):
         func = obj.reflect(self.mask_setter)
         func(values[1])
 
+class MacIpList(SingleAttr):
+    def __init__(self, name,
+                 getter,
+                 setter = None,
+                 writeable = True,
+                 show = True,
+                 optional = True,
+                 inv_getter = None,
+                 inv_setter = None):
+        super(MacIpList, self).__init__(name, StringType(),
+                                        getter = getter,
+                                        setter = setter,
+                                        writeable = writeable,
+                                        show = show,
+                                        optional = optional,
+                                        inv_getter = inv_getter,
+                                        inv_setter = inv_setter)
+
+    def _api_to_cli(self, value):
+        if not value:
+            return None
+        if not isinstance(value, list):
+            raise Exception("Bug: expected a list, received '%s'" % (value))
+
+        pairs = []
+        for pair in value:
+            if pair.has_key('mac') and pair['mac']:
+                pstr = pair['mac']
+
+            if pair.has_key('ip') and pair['ip']:
+                pstr = "%s-%s" % (pstr, pair['ip'])
+
+            pairs.append(pstr)
+        return ",".join(pairs)
+
+    def _cli_to_api(self, value):
+        values = map(lambda s: s.strip(), value.split(','))
+        pairs = []
+        for v in values:
+            pair = {}
+            parts = map(lambda s: s.strip(), v.split('-'))
+            if len(parts) != 2:
+                raise Exception("Invalid Ip-Mac pair: %s" % (v))
+            mac, ip = parts
+            if not MacAddress().is_valid(mac):
+                raise Exception("Invalid MAC in IP-Mac pair: %s" % (v))
+            if not IPv4Address().is_valid(ip):
+                raise Exception("Invalid IP in IP-Mac pair: %s" % (v))
+            pair['mac'] = mac
+            pair['ip'] = ip
+            pairs.append(pair)
+        return pairs
+
+    def fetch(self, obj):
+        try:
+            func = obj.reflect(self.getter)
+            return self.fetch_inv(obj, self._api_to_cli(func()))
+        except KeyError as e:
+            return None
+
+    def set(self, obj, value):
+        v = self.set_inv(obj, value)
+        api_val = self._cli_to_api(v)
+        if api_val is None:
+            raise Exception("Invalid value field %s: %s" % (self.name, value))
+        func = obj.reflect(self.setter)
+        func(api_val)
+
 class NatTarget(SingleAttr):
     def __init__(self, name,
                  getter,
@@ -1735,6 +1803,10 @@ class Router(ObjectType):
                                  setter = 'outbound_mirrors',
                                  unsetter = 'outbound_mirrors',
                                  optional = True))
+        self.put_attr(MacIpList(name = 'mac-ip-pairs',
+                                getter = 'get_mac_ip_pairs',
+                                setter = 'mac_ip_pairs',
+                                optional = True))
 
     def type_name(self):
         return "router"
@@ -2198,23 +2270,6 @@ class Interface(ObjectType):
         self.put_attr(SingleAttr(name = 'endpoint', value_type = StringType(),
                                  getter = 'get_endpoint', writeable = False))
 
-class MacIp(ObjectType):
-    def type_name(self):
-        return "macIp"
-
-    def __init__(self, obj):
-        super(MacIp, self).__init__(obj)
-        self.put_attr(SingleAttr(name = 'mac',
-                                 value_type = MacAddress(),
-                                 getter = 'get_mac',
-                                 setter = 'mac',
-                                 optional = False))
-        self.put_attr(SingleAttr(name = 'ip',
-                                 value_type = IPv4Address(),
-                                 getter = 'get_ip',
-                                 setter = 'ip',
-                                 optional = False))
-
 class RouterPort(ObjectType):
     def type_name(self):
         return "port"
@@ -2292,10 +2347,10 @@ class RouterPort(ObjectType):
         self.put_attr(BooleanAttr(name = 'offRampVxlan',
                                   getter = 'can_off_ramp_vxlan',
                                   setter = 'off_ramp_vxlan'))
-        self.put_attr(ListAttr(name = 'remoteVteps',
-                               element_type = MacIp,
-                               getter = 'get_remote_vteps',
-                               setter = 'remote_vteps'))
+        self.put_attr(MacIpList(name = 'remoteVteps',
+                                getter = 'get_remote_vteps',
+                                setter = 'remote_vteps',
+                                optional = True))
 
 # L4LB features
 class LoadBalancer(ObjectType):
@@ -2515,6 +2570,75 @@ class PoolStatistic(ObjectType):
     def type_name(self):
         return 'ps'
 
+class RouterVtepBinding(ObjectType):
+    def type_name(self):
+        return "router-vtep-binding"
+
+    def __init__(self, obj):
+        super(RouterVtepBinding, self).__init__(obj)
+        self.put_attr(SingleAttr(name = 'vtep',
+                                 value_type = ObjectRef('router'),
+                                 getter = 'get_vtep',
+                                 setter = 'vtep'))
+        self.put_attr(SingleAttr(name = 'vtep-ip',
+                                 value_type = IPv4Address(),
+                                 getter = 'get_vtep_ip',
+                                 setter = 'vtep_ip'))
+        self.put_attr(SingleAttr(name = 'router',
+                                 value_type = ObjectRef('router'),
+                                 getter = 'get_router',
+                                 setter = 'router'))
+        self.put_attr(SingleAttr(name = 'vtep-port',
+                                 value_type = ObjectRef('port'),
+                                 getter = 'get_vtep_port',
+                                 writeable = False))
+        self.put_attr(SingleAttr(name = 'router-port',
+                                 value_type = ObjectRef('port'),
+                                 getter = 'get_router_port',
+                                 writeable = False))
+        self.put_attr(SingleAttr(name = 'router-subnet',
+                                 value_type = StringType(),
+                                 getter = 'get_router_subnet',
+                                 setter = 'router_subnet'))
+        self.put_attr(SingleAttr(name = 'router-ip',
+                                 value_type = IPv4Address(),
+                                 getter = 'get_router_ip',
+                                 setter = 'router_ip'))
+        self.put_attr(SingleAttr(name = 'router-mac',
+                                 value_type = StringType(),
+                                 getter = 'get_router_mac',
+                                 setter = 'router_mac'))
+        self.put_attr(SingleAttr(name = 'vni',
+                                 value_type = VNI(),
+                                 getter = 'get_vni',
+                                 setter = 'vni'))
+
+class RouterVtepRoute(ObjectType):
+    def type_name(self):
+        return "router-vtep-route"
+
+    def __init__(self, obj):
+        super(RouterVtepRoute, self).__init__(obj)
+        self.put_attr(SingleAttr(name = 'binding',
+                                 value_type = ObjectRef('router-vtep-binding'),
+                                 getter = 'get_binding',
+                                 setter = 'binding'))
+        self.put_attr(SingleAttr(name = 'cidr',
+                                 value_type = StringType(),
+                                 getter = 'get_cidr',
+                                 setter = 'cidr'))
+        self.put_attr(SingleAttr(name = 'gw-ip',
+                                 value_type = IPv4Address(),
+                                 getter = 'get_gw_ip',
+                                 setter = 'gw_ip'))
+        self.put_attr(SingleAttr(name = 'gw-mac',
+                                 value_type = StringType(),
+                                 getter = 'get_gw_mac',
+                                 setter = 'gw_mac'))
+        self.put_attr(SingleAttr(name = 'remote-vtep-ip',
+                                 value_type = IPv4Address(),
+                                 getter = 'get_remote_vtep_ip',
+                                 setter = 'remote_vtep_ip'))
 
 class Vtep(ObjectType):
     def __init__(self, obj):
@@ -2714,6 +2838,16 @@ class Midonet(ObjectType):
                                  list_method = 'get_vteps',
                                  getter = 'get_vtep',
                                  factory_method = 'add_vtep'))
+        self.put_attr(Collection(name = 'router-vtep-binding',
+                                 element_type = RouterVtepBinding,
+                                 list_method = 'get_router_vtep_bindings',
+                                 getter = 'get_router_vtep_binding',
+                                 factory_method = 'add_router_vtep_binding'))
+        self.put_attr(Collection(name = 'router-vtep-route',
+                                 element_type = RouterVtepRoute,
+                                 list_method = 'get_router_vtep_routes',
+                                 getter = 'get_router_vtep_route',
+                                 factory_method = 'add_router_vtep_route'))
         self.put_attr(Collection(name = 'tracerequest',
                                  element_type = TraceRequest,
                                  list_method = 'get_tracerequests',

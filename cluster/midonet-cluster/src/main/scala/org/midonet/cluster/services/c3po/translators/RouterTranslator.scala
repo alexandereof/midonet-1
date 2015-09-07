@@ -86,6 +86,7 @@ class RouterTranslator(protected val storage: ReadOnlyStorage,
             newRouter.toBuilder
                      .addAllPortIds(oldRouter.getPortIdsList)
                      .addAllRouteIds(oldRouter.getRouteIdsList)
+                     .addAllMacIpPairs(oldRouter.getMacIpPairsList)
                      .build()
         }
     }

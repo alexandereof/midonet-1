@@ -63,6 +63,16 @@ public class Application {
         return uriFor(ResourceUris.ROUTERS);
     }
 
+    @JsonProperty("routerVtepBindings")
+    public URI getRouterVtepBindings() {
+        return uriFor(ResourceUris.ROUTER_VTEP_BINDINGS);
+    }
+
+    @JsonProperty("routerVtepRoutes")
+    public URI getRouterVtepRoutes() {
+        return uriFor(ResourceUris.ROUTER_VTEP_ROUTES);
+    }
+
     @JsonProperty("systemState")
     public URI getSystemState() {
         return uriFor(ResourceUris.SYSTEM_STATE);
@@ -226,6 +236,16 @@ public class Application {
     @JsonProperty("routerTemplate")
     public String getRouterTemplate() {
         return templateFor(ResourceUris.ROUTERS);
+    }
+
+    @JsonProperty("routerVtepBindingTemplate")
+    public String getRouterVtepBindingTemplate() {
+        return templateFor(ResourceUris.ROUTER_VTEP_BINDINGS);
+    }
+
+    @JsonProperty("routerVtepRouteTemplate")
+    public String getRouterVtepRouteTemplate() {
+        return templateFor(ResourceUris.ROUTER_VTEP_ROUTES);
     }
 
     @JsonProperty("ruleTemplate")

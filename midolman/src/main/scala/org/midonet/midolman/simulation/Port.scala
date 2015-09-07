@@ -23,6 +23,7 @@ import scala.collection.JavaConverters._
 import akka.actor.ActorSystem
 
 import org.midonet.cluster.data.ZoomConvert.ConvertException
+import org.midonet.cluster.models.Topology.MacIp
 import org.midonet.cluster.models.{Commons, Topology}
 import org.midonet.cluster.util.{IPAddressUtil, IPSubnetUtil, UUIDUtil}
 import org.midonet.midolman.PacketWorkflow.{AddVirtualWildcardFlow, Drop, ErrorDrop, SimStep, SimulationResult}
@@ -117,7 +118,11 @@ object Port {
             if (p.hasVni) p.getVni else 0,
             if (p.hasLocalVtep) toIPv4Addr(p.getLocalVtep) else null,
             if (p.hasDefaultRemoteVtep) toIPv4Addr(p.getDefaultRemoteVtep) else null,
-            if (p.getRemoteVtepsCount == 0) macVtepListToMap(p.getRemoteVtepsList) else Map.empty[MAC, IPv4Addr],
+            p.getRemoteVtepsList.asScala.map({
+                pair: MacIp =>
+                    (MAC.fromString(pair.getMac),
+                        IPAddressUtil.toIPv4Addr(pair.getIp))
+            }).toMap,
             p.getOffRampVxlan)
 
     private def vxLanPort(p: Topology.Port) = VxLanPort(
@@ -326,7 +331,7 @@ case class RouterPort(override val id: UUID,
                       vni: Int = 0,
                       localVtep: IPv4Addr = null,
                       defaultRemoteVtep: IPv4Addr = null,
-                      remoteVteps: Map[MAC, IPv4Addr] = null,
+                      remoteMacToVtepIp: Map[MAC, IPv4Addr] = Map.empty(),
                       offRampVxlan: Boolean = false)
     extends Port {
 

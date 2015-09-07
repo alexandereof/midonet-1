@@ -78,6 +78,11 @@ object MidonetMediaTypes {
     final val APPLICATION_MIRROR_JSON = "application/vnd.org.midonet.Mirror-v1+json"
     final val APPLICATION_MIRROR_COLLECTION_JSON = "application/vnd.org.midonet.collection.Mirror-v1+json"
 
+    final val APPLICATION_ROUTER_VTEP_ROUTE_JSON = "application/vnd.org.midonet.RouterVtepRoute-v1+json"
+    final val APPLICATION_ROUTER_VTEP_ROUTE_COLLECTION_JSON = "application/vnd.org.midonet.collection.RouterVtepRoute-v1+json"
+    final val APPLICATION_ROUTER_VTEP_BINDING_JSON = "application/vnd.org.midonet.RouterVtepBinding-v1+json"
+    final val APPLICATION_ROUTER_VTEP_BINDING_COLLECTION_JSON = "application/vnd.org.midonet.collection.RouterVtepBinding-v1+json"
+
     /* DHCP configuration types. */
     final val APPLICATION_DHCP_SUBNET_JSON = "application/vnd.org.midonet.DhcpSubnet-v1+json"
     final val APPLICATION_DHCP_SUBNET_JSON_V2 = "application/vnd.org.midonet.DhcpSubnet-v2+json"

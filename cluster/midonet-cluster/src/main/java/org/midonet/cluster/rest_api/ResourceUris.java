@@ -49,6 +49,8 @@ public final class ResourceUris {
     public static final String POOL_MEMBERS = "pool_members";
     public static final String PORTS = "ports";
     public static final String PORT_GROUPS = "port_groups";
+    public static final String ROUTER_VTEP_BINDINGS = "router_vtep_bindings";
+    public static final String ROUTER_VTEP_ROUTES = "router_vtep_routes";
     public static final String ROUTERS = "routers";
     public static final String ROUTES = "routes";
     public static final String RULES = "rules";
